@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <string name="app_name">Trail Trace</string>
+    <string name="action_settings">More Information</string>
+    <string name="search_hint">Search the Earth</string>
+    <string name="search_box">SearchBox</string>
+    <string name="search_icon">Search</string>
+    <string name="title_activity_search">Search Results</string>
+    <string name="NoData">No Data</string>
+    <string name="LocalityAndCountryNames">Locality and Country</string>
+    <string name="PlaceName">Place Name</string>
+    <string name="traceroute">Trace a Route</string>
+    <string name="measurebuttonstring">measure</string>
+    <string name="erasebuttonstring">erase</string>
+    <string name="eraserdescription">Erase</string>
+    <string name="measuredescription">Measure</string>
+    <string name="polyline_info_window_name_placeholder">ROUTE NAME</string>
+    <string name="polyline_info_window_distance_placeholder">DISTANCE</string>
+    <string name="how_to_use_title">How does it work?</string>
+    <string name="credits_title">Credits</string>
+    <string name="what_is_this_title">What does this app do?</string>
+    <string name="what_is_this_content">Trail Trace is a simple way to estimate distances on a topographic map. \n\nIt\'s useful for planning hikes, runs, or any other adventures that take you away from the pavement. \n\n(Of course, it can measure distances on roads, too.)</string>
+    <string name="how_to_use_content">Using Trail Trace is simple: \n\n
+1) Search for the location of your route\n
+2) Open the pencil screen to draw your route on the map\n
+3) Tap the ruler icon to measure your traced route\n\n
+For the most accurate measurement, take your time tracing the route. Dont be afraid to draw lots of little dashes, for accuracy - Trail Trace will connect the dots for you. \n\n
+If you draw multiple lines next to each other, the app will smooth them together to produce a more accurate estimate, so also feel free to overlap those traces a little bit at the tips.\n\n
+Remember that no matter how accurately you draw your route on the map, Trail Trace will not be 100% accurate. All data are provided for informational purposes only - we can\'t guarantee their accuracy.</string>
+<string name="credits_content">Maps © Thunderforest.com\nData © OpenStreetMap.org/copyright\nGeocoding via nominatim.openstreetmap.org\nIcons from http://www.designcontest.com</string> 
+<string name="title_help">Help</string>
+<string name="nonetworkdialog_no_network_what_do">Trail Trace needs a network connection.</string>
+<string name="nonetworkdialog_retry">Retry</string>
+<string name="nonetworkdialog_nevermind">Never mind then</string>
+</resources>

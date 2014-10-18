@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- the theme applied to the application or activity -->
+    <style name="TranslucentActionBarTheme" parent="@style/Theme.AppCompat.Light.DarkActionBar">
+        <item name="android:actionBarStyle">@style/TranslucentActionBar</item>
+        <item name="actionBarStyle">@style/TranslucentActionBar</item>
+        
+    </style>
+
+    <!-- ActionBar styles -->
+    <style name="TranslucentActionBar" parent="@style/Widget.AppCompat.Light.ActionBar.Solid.Inverse">
+        <item name="android:background">@drawable/action_bar_background</item>
+        <item name="android:windowActionBarOverlay">true</item>
+        <item name="background">@drawable/action_bar_background</item>
+    </style>
+</resources>

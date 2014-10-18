@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?><RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/route_draw_fragment_layout"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent" >
+
+    <com.coolhandsoftware.trailtrace.RouteDrawView
+        android:id="@+id/route_draw_view"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:layout_alignParentLeft="true"
+        android:layout_alignParentTop="true"
+        android:background="#800F0F0F" />
+
+    <ImageButton
+        android:id="@+id/measure_button"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_alignParentRight="true"
+        android:layout_alignParentTop="true"
+        android:contentDescription="@string/measuredescription"
+        android:src="@drawable/ruler_button"
+        android:background="@android:color/transparent" />
+
+    <ImageButton
+        android:id="@+id/eraser_button"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_alignParentRight="true"
+        android:layout_below="@+id/measure_button"
+        android:background="@android:color/transparent"
+        android:contentDescription="@string/eraserdescription"
+        android:src="@drawable/eraser_button" />
+
+</RelativeLayout>
