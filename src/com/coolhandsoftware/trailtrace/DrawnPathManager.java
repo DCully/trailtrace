@@ -223,6 +223,8 @@ public class DrawnPathManager {
     	Point curPoint = new Point(0,0);
     	GeoPoint curGeoPoint = new GeoPoint(0,0);
     	
+    	//System.out.println("In getStoredCoordPixels");
+    	
     	for (int x = 0; x < mLatLonCoordsList.size(); ++x) {
     		storedCoordsAsPixels.add(new ArrayList<Pair<Integer, Integer>>());
     		
@@ -231,6 +233,7 @@ public class DrawnPathManager {
     			curGeoPoint = new GeoPoint(curPair.first, curPair.second);
     			projection.toPixels(curGeoPoint, curPoint);
     			storedCoordsAsPixels.get(x).add(new Pair<Integer, Integer>(curPoint.x, curPoint.y));
+    			//System.out.println("    converted " + curPair.first + ", " + curPair.second + " to " + curPoint.x + ", " + curPoint.y);
     		}
     	}
     	

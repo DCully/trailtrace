@@ -36,14 +36,9 @@ public class NoNetworkDialogFragment extends DialogFragment {
 	public Dialog onCreateDialog(Bundle savedInstanceState) {
 	    AlertDialog.Builder builder = new AlertDialog.Builder(getActivity());
 	    builder.setMessage(R.string.nonetworkdialog_no_network_what_do)
-	           .setPositiveButton(R.string.nonetworkdialog_retry, new DialogInterface.OnClickListener() {
+	           .setPositiveButton(R.string.nonetworkdialog_ok, new DialogInterface.OnClickListener() {
 	               public void onClick(DialogInterface dialog, int id) {
 	                   mListener.onDialogPosClick(NoNetworkDialogFragment.this);
-	               }
-	           })
-	           .setNegativeButton(R.string.nonetworkdialog_nevermind, new DialogInterface.OnClickListener() {
-	               public void onClick(DialogInterface dialog, int id) {
-	            	   mListener.onDialogNegClick(NoNetworkDialogFragment.this);
 	               }
 	           });
 	    return builder.create();

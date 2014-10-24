@@ -10,5 +10,4 @@ import android.app.DialogFragment;
  */
 public interface INoNetworkDialogListener {
 	public void onDialogPosClick(DialogFragment dialog);
-	public void onDialogNegClick(DialogFragment dialog);
 }

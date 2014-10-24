@@ -20,8 +20,6 @@ import org.osmdroid.views.overlay.compass.CompassOverlay;
 import org.osmdroid.views.overlay.compass.InternalCompassOrientationProvider;
 import org.osmdroid.views.overlay.mylocation.MyLocationNewOverlay;
 
-import com.coolhandsoftware.topogen.R;
-
 import android.app.Fragment;
 import android.content.Context;
 import android.graphics.Color;
@@ -30,6 +28,8 @@ import android.os.Bundle;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+
+import com.coolhandsoftware.topogen.R;
 
 /**
  * This fragment holds the map itself for the MapActivity.
@@ -53,8 +53,8 @@ public class MapFragment extends Fragment {
 	private Polyline mPolyline;
 		
 	/**
-	 * Sets up and returns mMapView with its overlays. Sets parent activity as mMapView's 
-	 * onFirstLayoutListener, so the activity can update the map when it's ready to be 
+	 * Sets up and returns mMapView with its overlays. Sets parent activity as myMapView's 
+	 * IMapViewLayoutListener, so the activity can update the map when it's ready to be 
 	 * drawn on.
 	 */
 	@Override
@@ -73,19 +73,32 @@ public class MapFragment extends Fragment {
         final Context context = this.getActivity();
         myCompassOverlay = new CompassOverlay(context, new InternalCompassOrientationProvider(context), myMapView);
 		myMapView.getOverlays().add(myCompassOverlay);
-		myCompassOverlay.enableCompass();
         
 		myScaleOverlay = new ScaleBarOverlay(context);
 		myScaleOverlay.setUnitsOfMeasure(ScaleBarOverlay.UnitsOfMeasure.imperial);
 		myMapView.getOverlays().add(myScaleOverlay);
 		
 		myLocationOverlay = new MyLocationNewOverlay(context, myMapView);
-		myLocationOverlay.enableMyLocation();
 		myMapView.getOverlays().add(myLocationOverlay);
 		
-		myMapView.addOnFirstLayoutListener((MapActivity) getActivity());
-		
+		myMapView.addOnLayoutChangeListener((MapActivity) getActivity());
+				
 		return myMapView;
+	}
+	
+	@Override
+	public void onPause() {
+		super.onPause();
+		myLocationOverlay.disableMyLocation();
+		myCompassOverlay.disableCompass();
+	}
+	
+	@Override
+	public void onResume() {
+		super.onResume();
+		myLocationOverlay.enableMyLocation();
+		myCompassOverlay.enableCompass();
+
 	}
 	
 	/**
@@ -178,7 +191,7 @@ public class MapFragment extends Fragment {
 		mPolyline.getPaint().setColor(Color.BLUE);
 		
 		// multiplies by constant factor to compensate for smoothness of trace vs jaggedness of average trail
-		// TODO this is not great - it needs to snap to routes. increases distance by 12.5%
+		// TODO this is not great - it needs to snap to routes. increases distance by 10%
 
 		
 		// build an info window to show total distance
