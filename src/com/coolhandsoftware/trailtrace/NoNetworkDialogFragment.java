@@ -11,6 +11,13 @@ import android.os.Bundle;
 
 public class NoNetworkDialogFragment extends DialogFragment {
 	
+	/**
+	 * Callback interface for the no network dialog. Must be implemented by NoNetworkDialogFragment's owner.
+	 */
+	public interface INoNetworkDialogListener {
+		public void onDialogPosClick(DialogFragment dialog);
+	}
+	
 	INoNetworkDialogListener mListener;
 	
 	/**

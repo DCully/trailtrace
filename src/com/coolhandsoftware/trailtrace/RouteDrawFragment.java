@@ -31,7 +31,7 @@ public class RouteDrawFragment extends Fragment {
 	private RouteDrawView mRouteDrawView;
 	
 	/** the recipient of callbacks **/
-	private IRouteDrawReceiver mReceiver;
+	private RouteDrawView.IRouteDrawReceiver mReceiver;
 	
 	/**
 	 * Stores reference to view after inflating but before returning.
@@ -48,19 +48,23 @@ public class RouteDrawFragment extends Fragment {
 	 * Draws route onto the screen from pairs of pixel coordinates. Used to refresh trace state from elsewhere.
 	 * @param storedLineSegments the list of list of points to be stored - each inner list is a segment
 	 */
-	public void drawRouteFromPixels(ArrayList<ArrayList<Pair<Integer, Integer>>> storedLineSegments) {
+	public void drawRouteFromPixels(ArrayList<ArrayList<Point>> storedLineSegments) {
 
 		mRouteDrawView.clearTracedRoute();
 		
-		for (int segment = 0; segment < storedLineSegments.size(); ++segment) {
-			ArrayList<Pair<Integer, Integer>> curSegment = storedLineSegments.get(segment);
-			mRouteDrawView.moveLineTo(curSegment.get(0).first, curSegment.get(0).second); // move the paintbrush to the first point
-						
-			for (int point = 1; point < curSegment.size(); ++ point) {
-				mRouteDrawView.drawLineTo(curSegment.get(point).first, curSegment.get(point).second); // draw the line to the next point
-			}
+		for (int x = 0; x < storedLineSegments.size(); ++x) {
+			ArrayList<Point> segment = storedLineSegments.get(x);
+			mRouteDrawView.moveLineTo(segment.get(0).x, segment.get(0).y); // move the paintbrush to the first point
 			
-			mRouteDrawView.drawArrowAtEndOf(curSegment);
+			for (int y = 1; y < segment.size(); ++ y) {
+				mRouteDrawView.drawLineTo(segment.get(y).x, segment.get(y).y); // draw the line to the next point
+			}
+		
+			Pair<Point, Point> lastTwoPoints;
+			Point first = segment.get(segment.size()-2);
+			Point second = segment.get(segment.size()-1);
+			lastTwoPoints = new Pair<Point, Point>(first, second);
+			//mRouteDrawView.drawArrowAtEndOf(lastTwoPoints);
 		}
 	}
 	
@@ -75,7 +79,7 @@ public class RouteDrawFragment extends Fragment {
 	 * Allows caller to register to receive updates from RouteDrawView upon draw events via an interface.
 	 * @param receiver the object implementing the IRouteDrawReceiver interface
 	 */
-	public void registerAsRouteDrawReceiver(IRouteDrawReceiver receiver) {
+	public void registerAsRouteDrawReceiver(RouteDrawView.IRouteDrawReceiver receiver) {
 		
 		mReceiver = receiver;
 		
@@ -85,9 +89,9 @@ public class RouteDrawFragment extends Fragment {
 			// if the view doesn't exist, throw an exception
 		}
 		else {
-			// store a reference to the route draw view and cast it as such
+			// store a reference to the route draw view
 			mRouteDrawView = (RouteDrawView) aView;
-			mRouteDrawView.initializeMemberVariables(mReceiver);
+			mRouteDrawView.registerAsReceiver(mReceiver);
 		}
 		
 		// set up this fragment as the receiver of all button presses, too
@@ -98,7 +102,7 @@ public class RouteDrawFragment extends Fragment {
 		eraseButton.setOnClickListener(new View.OnClickListener() {
 			@Override
 			public void onClick(View v) {
-				mReceiver.eraseButtonPressed();
+				mReceiver.onEraseButtonPressed();
 				mRouteDrawView.clearTracedRoute();
 			}
 		});
@@ -107,7 +111,7 @@ public class RouteDrawFragment extends Fragment {
 		measureButton.setOnClickListener(new View.OnClickListener() {
 			@Override
 			public void onClick(View v) {
-				mReceiver.measureButtonPressed();
+				mReceiver.onMeasureButtonPressed();
 				mRouteDrawView.clearTracedRoute();
 			}
 		});	

@@ -14,8 +14,8 @@ import android.app.SearchManager;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
+import android.graphics.Point;
 import android.os.Bundle;
-import android.util.Pair;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
@@ -38,7 +38,11 @@ import com.coolhandsoftware.topogen.R;
  * david.a.cully@gmail.com
  *
  */
-public class MapActivity extends Activity implements IRouteDrawReceiver, INoNetworkDialogListener, View.OnLayoutChangeListener {
+public class MapActivity extends Activity implements RouteDrawView.IRouteDrawReceiver, 
+														NoNetworkDialogFragment.INoNetworkDialogListener, 
+														View.OnLayoutChangeListener, // used to delay drawing to map until it is laid out 
+														SnappablePolyline.IPolylineDoubleTapReceiver 
+														{
 
 	/** convenience reference for class functions after onCreate **/
 	private MapFragment mMapFragment;
@@ -62,14 +66,14 @@ public class MapActivity extends Activity implements IRouteDrawReceiver, INoNetw
     protected void onCreate(Bundle savedInstanceState) 
     {        
         super.onCreate(savedInstanceState);
-        
         setContentView(R.layout.map_activity);
         
         FragmentManager fm = getFragmentManager();
         mRouteDrawFragment = (RouteDrawFragment) fm.findFragmentById(R.id.route_draw_fragment);
         mMapFragment = (MapFragment) fm.findFragmentById(R.id.map_fragment);
         
-        mRouteDrawFragment.registerAsRouteDrawReceiver(this); 
+        mMapFragment.registerAsPolylineDtapListener(this);
+        mRouteDrawFragment.registerAsRouteDrawReceiver(this);         
     }
     
     /**
@@ -81,13 +85,15 @@ public class MapActivity extends Activity implements IRouteDrawReceiver, INoNetw
     }
     
     /**
-     * Tries again to find the network.
+     * If no network found, launch help activity intent with exit flag to go to home screen.
      * @see com.coolhandsoftware.trailtrace.INoNetworkDialogListener#onDialogPosClick(android.app.DialogFragment)
      */
 	public void onDialogPosClick(DialogFragment dialog) {
-		// do nothing - hasNetwork is set to false, still
 		dialog.dismiss();
-		finish();
+		Intent intent = new Intent(this, HelpActivity.class);
+		intent.addCategory(Intent.CATEGORY_HOME);
+		intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+		startActivity(intent);
 	}
     
     /**
@@ -102,24 +108,28 @@ public class MapActivity extends Activity implements IRouteDrawReceiver, INoNetw
     	
     	// test for network connectivity
     	NetworkChecker networkChecker = new NetworkChecker();
-    	boolean hasNetwork = networkChecker.checkNetworkConnection(getApplicationContext());
+    	boolean hasNetwork = networkChecker.hasNetworkConnectivity(getApplicationContext());
     	if (!hasNetwork) {
     		launchNoNetworkDialog();
     	}
     	
         // the draw screen is shown by default so we only need to hide it if its closed
         FragmentManager fm = getFragmentManager();
-        if (!DrawnPathManager.getInstance().isRouteDrawOpen()) {
+        if (!MapTraceCoordinateManager.getInstance().isRouteDrawOpen()) {
         	fm.beginTransaction().hide(mRouteDrawFragment).commit();
         }   
         
         // restore map to previous zoom level
-        mMapFragment.setZoomLevel(DrawnPathManager.getInstance().getZoomLevel());
+        mMapFragment.setZoomLevel(MapTraceCoordinateManager.getInstance().getZoomLevel());
                 
-        // just refresh both of them, for now
-        refreshTraceOnMap();
-        scheduleRouteDrawRefreshOnMapViewLaidOut();
         checkIntentForCoordinatesOrFailQuery();
+        
+        if (MapTraceCoordinateManager.getInstance().isRouteDrawOpen() == true) {
+        	scheduleRouteDrawRefreshOnMapViewLaidOut();
+        }
+        else {
+        	refreshTraceOnMap();
+        }
         
         // always do this to make sure the pencil icon is in sync, the search view is collapsed, etc
         invalidateOptionsMenu();
@@ -140,14 +150,14 @@ public class MapActivity extends Activity implements IRouteDrawReceiver, INoNetw
     	super.onPause();
     	
     	if (mRouteDrawFragment.isHidden()) {
-    		DrawnPathManager.getInstance().setRouteDrawOpen(false);
+    		MapTraceCoordinateManager.getInstance().setRouteDrawOpen(false);
     	}
     	else {
-    		DrawnPathManager.getInstance().setRouteDrawOpen(true);
+    		MapTraceCoordinateManager.getInstance().setRouteDrawOpen(true);
     	}
     	
-    	DrawnPathManager.getInstance().storeCurrentMapCenter(mMapFragment.getCurrentMapCenter()); 
-    	DrawnPathManager.getInstance().storeZoomLevel(mMapFragment.getZoomLevel());
+    	MapTraceCoordinateManager.getInstance().storeCurrentMapCenter((GeoPoint) mMapFragment.getCurrentMapCenter()); 
+    	MapTraceCoordinateManager.getInstance().storeZoomLevel(mMapFragment.getZoomLevel());
     }
     
     /**
@@ -176,21 +186,24 @@ public class MapActivity extends Activity implements IRouteDrawReceiver, INoNetw
     @Override
     public void startActivity(Intent intent) {
     	// test for network connectivity again, in case we're launching searchActivity and have lost network since onResume
-    	NetworkChecker networkChecker = new NetworkChecker();
-    	boolean hasNetwork = networkChecker.checkNetworkConnection(getApplicationContext());
-    	if (!hasNetwork) {
-    		launchNoNetworkDialog();
+    	if (intent.getAction() == Intent.ACTION_SEARCH) {
+        	NetworkChecker networkChecker = new NetworkChecker();
+        	boolean hasNetwork = networkChecker.hasNetworkConnectivity(getApplicationContext());
+        	if (!hasNetwork) {
+        		launchNoNetworkDialog();
+        	}	
     	}
+    	super.startActivity(intent);
     }
     
 	/**
 	 * Refreshes user-drawn trace from most recently stored set of raw user-inputted coordinates.
 	 */
     private void refreshRouteDrawTrace() {
-        if (DrawnPathManager.getInstance().hasStoredPoints()) {
+        if (MapTraceCoordinateManager.getInstance().hasStoredTouchPoints()) {
         	// get them, and send them to the RouteDrawFragment for drawing
         	Projection projection = mMapFragment.getCurrentProjection();
-          	ArrayList<ArrayList<Pair<Integer, Integer>>> storedLineSegments = DrawnPathManager.getInstance().getStoredCoordPixels(projection);
+          	ArrayList<ArrayList<Point>> storedLineSegments = MapTraceCoordinateManager.getInstance().getStoredTouchPoints(projection);
         	mRouteDrawFragment.drawRouteFromPixels(storedLineSegments);
         }    	
     }
@@ -219,20 +232,20 @@ public class MapActivity extends Activity implements IRouteDrawReceiver, INoNetw
 	    if (lati != 200 && longi != 200) {
 	    	// if we find an intended place to move to, move to it, and tell the mDrawnPathManager we did so
 	    	mMapFragment.moveMapToLocation(lati, longi);
-	    	DrawnPathManager.getInstance().storeCurrentMapCenter(new GeoPoint(lati, longi));
+	    	MapTraceCoordinateManager.getInstance().storeCurrentMapCenter(new GeoPoint(lati, longi));
 	    	intent.removeExtra(SearchActivity.INTENDED_LATITUDE);
 	    	intent.removeExtra(SearchActivity.INTENDED_LONGITUDE);
 	    }
 	    else if (failedquery != null) {
 	    	// if we tried to find a place to go but couldn't say so, and move to last known location
 			Toast.makeText(this, "No results found for " + failedquery, Toast.LENGTH_LONG).show();
-			IGeoPoint curSpot = DrawnPathManager.getInstance().getCurrentMapCenter(this);
+			IGeoPoint curSpot = MapTraceCoordinateManager.getInstance().getCurrentMapCenter(this);
 			mMapFragment.moveMapToLocation(curSpot.getLatitude(), curSpot.getLongitude());
 			intent.removeExtra(SearchActivity.NO_RESULTS_FOUND);
 	    }
 	    else {
 	    	// just go to where we were before
-			IGeoPoint curSpot = DrawnPathManager.getInstance().getCurrentMapCenter(this);
+			IGeoPoint curSpot = MapTraceCoordinateManager.getInstance().getCurrentMapCenter(this);
 			mMapFragment.moveMapToLocation(curSpot.getLatitude(), curSpot.getLongitude());
 	    }
 	}
@@ -240,9 +253,9 @@ public class MapActivity extends Activity implements IRouteDrawReceiver, INoNetw
     /**
      * Refreshes the last processed, measured route rendered to the map from mDrawnPathManager.
      */
-    private void refreshTraceOnMap() {
-    	if (DrawnPathManager.getInstance().hasLastMeasuredRoute()) {
-    		mMapFragment.drawRouteFromGeoPoints(DrawnPathManager.getInstance().getLastMeasuredRoute());
+    public void refreshTraceOnMap() {
+    	if (MapTraceCoordinateManager.getInstance().hasStoredTouchPoints()) {
+    		mMapFragment.drawRoute(MapTraceCoordinateManager.getInstance().getMeasuredPoints(mMapFragment.getCurrentProjection()));
     	}
     }
     
@@ -264,7 +277,7 @@ public class MapActivity extends Activity implements IRouteDrawReceiver, INoNetw
         searchView.setSearchableInfo(searchManager.getSearchableInfo(compName));
         searchView.setIconifiedByDefault(true);
         
-        if (!DrawnPathManager.getInstance().isRouteDrawOpen()) {
+        if (!MapTraceCoordinateManager.getInstance().isRouteDrawOpen()) {
     		MenuItem drawMenuItem = menu.findItem(R.id.action_traceroute); 
     		drawMenuItem.setIcon(R.drawable.ic_menu_edit_disabled); // set icon to closed one
         }
@@ -310,11 +323,9 @@ public class MapActivity extends Activity implements IRouteDrawReceiver, INoNetw
     		
     		MenuItem drawMenuItem = mMenu.findItem(R.id.action_traceroute);
     		drawMenuItem.setIcon(R.drawable.ic_menu_edit_enabled); // set icon to open one
-    		
+    		    		
+    		// erase the blue line on the map, but don't forget the points - we need them to redraw the route trace
     		refreshRouteDrawTrace();
-    		
-    		// forget about what was on the map before 
-    		DrawnPathManager.getInstance().forgetLastMeasuredRoute();
     		mMapFragment.eraseTracedRoute();
     	}
     	else {
@@ -334,16 +345,16 @@ public class MapActivity extends Activity implements IRouteDrawReceiver, INoNetw
      * Pass coordinates to mDrawnPathManager.
      * @see com.coolhandsoftware.trailtrace.IRouteDrawReceiver#storeXyCoordinates(java.util.ArrayList)
      */
-	public void storeXyCoordinates(ArrayList<Pair<Integer, Integer>> coordinates) {
-		DrawnPathManager.getInstance().storeXyCoordinates(coordinates, mMapFragment.getCurrentProjection());
+	public void storePixelPoint(Point coordinate, boolean isNewSegment) {
+		MapTraceCoordinateManager.getInstance().storeTouchPoint(coordinate, isNewSegment, mMapFragment.getCurrentProjection());
 	}
 	
 	/**
 	 * Tells mDrawnPathManager to forget the current trace.
 	 * @see com.coolhandsoftware.trailtrace.IRouteDrawReceiver#eraseButtonPressed()
 	 */
-	public void eraseButtonPressed() {
-		DrawnPathManager.getInstance().forgetStoredXyCoordinates();
+	public void onEraseButtonPressed() {
+		MapTraceCoordinateManager.getInstance().forgetPoints();
 		// note: the RouteDrawFragment calls the erase functions in the view
 	}
 	
@@ -354,14 +365,24 @@ public class MapActivity extends Activity implements IRouteDrawReceiver, INoNetw
 	 *  
 	 * @see com.coolhandsoftware.trailtrace.IRouteDrawReceiver#measureButtonPressed()
 	 */
-	public void measureButtonPressed() {
+	public void onMeasureButtonPressed() {
 		
-		ArrayList<GeoPoint> geoPointsList = DrawnPathManager.getInstance().processStoredXyCoordinates();
+		Projection projection = mMapFragment.getCurrentProjection();
+		MeasuredRoute route = MapTraceCoordinateManager.getInstance().getMeasuredPoints(projection);
 	
-		if (geoPointsList.size() > 0) {
-			mMapFragment.drawRouteFromGeoPoints(geoPointsList);
+		if (route.mPoints.size() > 0 && route.mPoints.get(0).size() > 0) {
+			mMapFragment.drawRoute(route);
 			toggleRouteDrawFragmentVisibility();
-			DrawnPathManager.getInstance().forgetStoredXyCoordinates();
+		}
+	}
+	
+	/**
+	 * Called when the polyline displaying the measured trace on the map has been double tapped by the user.
+	 * This is when we "snap" the line to nearby routes, so we get that process started now in the DrawnPathManager.
+	 */
+	public void onPolylineDoubletapped() {
+		if (MapTraceCoordinateManager.getInstance().hasStoredTouchPoints()) {
+			MapTraceCoordinateManager.getInstance().snapTraceToWays(mMapFragment.getCurrentProjection().getBoundingBox(), this, this);
 		}
 	}
 }

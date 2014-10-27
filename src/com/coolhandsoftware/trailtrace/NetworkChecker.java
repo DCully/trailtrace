@@ -20,7 +20,7 @@ public class NetworkChecker {
 	 * @param context Context from which we are looking for the network 
 	 * @return true if we have a connection, false if we don't
 	 */
-	public boolean checkNetworkConnection(Context context) {
+	public boolean hasNetworkConnectivity(Context context) {
     	// test for network connectivity
         ConnectivityManager connectivity = (ConnectivityManager) context.getSystemService(Context.CONNECTIVITY_SERVICE);
         if (connectivity == null) {

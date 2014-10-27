@@ -1,11 +1,10 @@
 package com.coolhandsoftware.trailtrace;
-import java.util.ArrayList;
-
 import android.content.Context;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
 import android.graphics.Path;
+import android.graphics.Point;
 import android.util.AttributeSet;
 import android.util.Pair;
 import android.view.MotionEvent;
@@ -23,12 +22,6 @@ import android.view.View;
  */
 public class RouteDrawView extends View {
 	
-	/** the list of points hit on the current singletouch trace - passed on with every ACTION_UP **/
-	ArrayList<Pair<Integer, Integer>> mTracedXyCoordinates = new ArrayList<Pair<Integer, Integer>>();
-	
-	/** the minimum number of points to trace through before we ignore it as unintentional input **/
-	private int MIN_COORDINATE_COUNT = 5;
-	
 	/** holds the color/style info for our trace, as set in ctor **/
 	private Paint mPaint = new Paint();
 	
@@ -41,16 +34,17 @@ public class RouteDrawView extends View {
 	/** size of arrows put on end of each segment after user traces them - re-calculated in onResume from activity size **/
 	public int arrowSize = 25;
 	
-	
 	/**
-	 * For building these Views from code (instead of XML)
-	 * @param context 
-	 * @param receiver The object which this view will call to with its coordinates when they're finished being generated.
+	 * This is the interface the RouteDrawView calls through when
+	 * it has finished rendering a drawn route from a touch event 
+	 * and needs to notify its parent Activity with its coordinates.
 	 */
-	public RouteDrawView(Context context, IRouteDrawReceiver receiver) {
-		super(context);
-		initializeMemberVariables(receiver);
+	public interface IRouteDrawReceiver {
+		public abstract void storePixelPoint(Point coordinate, boolean isNewSegment);
+		public abstract void onEraseButtonPressed();
+		public abstract void onMeasureButtonPressed();
 	}
+	
 	
 	/**
 	 * This ctor may be called from the XML, and calls thru to the superclass.
@@ -58,7 +52,7 @@ public class RouteDrawView extends View {
 	 * @param context where this was called from
 	 */
 	public RouteDrawView(Context context) {
-		super(context);
+		super(context);;
 	}
 	
 	/**
@@ -83,12 +77,11 @@ public class RouteDrawView extends View {
 	}
 	
 	/**
-	 * Sets up this View's member variables - mReceiver and mPaint. Always call this from the parent Fragment!
-	 * @param receiver The object that will receiver notifications when the user draws in this view.
+	 * Register to receive callbacks when the user traces a route.
+	 * @param receiver
 	 */
-	public void initializeMemberVariables(IRouteDrawReceiver receiver) {
+	public void registerAsReceiver(RouteDrawView.IRouteDrawReceiver receiver) {
 		mReceiver = receiver;
-
 		mPaint.setStrokeWidth(6f);
 		mPaint.setColor(Color.BLACK);
 		mPaint.setStyle(Paint.Style.STROKE);
@@ -118,43 +111,19 @@ public class RouteDrawView extends View {
 		int x = Math.round(event.getX());
 		int y = Math.round(event.getY());
 						
-		// TODO let the user draw multiple segments at a time...
-
 		switch(event.getAction()) {
 		case MotionEvent.ACTION_DOWN: 
-			/*
-			 * The user just began tracing a new route, so ditch the
-			 * old list of points, and the old path drawing, and 
-			 * start recording a new one.
-			 */
-			mTracedXyCoordinates.clear(); 
-			mTracedXyCoordinates.add(new Pair<Integer, Integer>(x, y)); 
 			mPath.moveTo(x, y);
 			invalidate();
+			mReceiver.storePixelPoint(new Point(x, y), true);
 			return true;
-		case MotionEvent.ACTION_MOVE:
-			/*
-			 * This is the case where the user is mid-path trace.
-			 * We store the x,y coordinates in our vector, and 
-			 * move the path we're drawing with. 
-			 */
-			mTracedXyCoordinates.add(new Pair<Integer, Integer>(x, y)); 
-			if (mTracedXyCoordinates.size() > MIN_COORDINATE_COUNT) {
-				mPath.lineTo(x, y);
-				invalidate();
-			}
+		case MotionEvent.ACTION_MOVE:		
+			mPath.lineTo(x, y);
+			invalidate();
+			mReceiver.storePixelPoint(new Point(x, y), false);
 			return true;
 		case MotionEvent.ACTION_UP:
-			/*
-			 * This is the case where the user has just finished
-			 * tracing a route. We store the x,y coordinates, send
-			 * them off to the registered receiver.
-			 */
-			if (mTracedXyCoordinates.size() > MIN_COORDINATE_COUNT) {
-				mReceiver.storeXyCoordinates(mTracedXyCoordinates);
-				drawArrowAtEndOf(mTracedXyCoordinates);
-				invalidate();	
-			}
+			invalidate();
 			return true;
 		default:
 			return false;
@@ -162,42 +131,44 @@ public class RouteDrawView extends View {
 	}
 	
 	/**
-	 * Draws an arrow pointing towards the end of a line segment, at the midpoint of that line segment.
-	 * Coordinates list must be at least 2 points long!
+	 * Draws an arrow 30 degrees off the line segment defined by the two points in the pair.
+	 * The tip of the arrow is the second point in the pair.
+	 * 
+	 * TODO this doesn't work - it breaks my polyline somehow
 	 * 
 	 * @param mTracedXyCoordinates the list of points that makes up the segment (in pixels).
 	 */
-	public void drawArrowAtEndOf(ArrayList<Pair<Integer, Integer>> mTracedXyCoordinates) {
+	public void drawArrowAtEndOf(Pair<Point, Point> points) {
 		
 		/**
 		 * We draw two segments out from the tip of the arrow back and 30 degrees out from where the 
 		 * point before the tip of the arrow is. 
 		 */
 		
-		Pair<Integer, Integer> tipOfArrow = mTracedXyCoordinates.get(mTracedXyCoordinates.size()-1);
-		Pair<Integer, Integer> oneBeforeTip = mTracedXyCoordinates.get(mTracedXyCoordinates.size()-4);
+		//Pair<Integer, Integer> tipOfArrow = mTracedXyCoordinates.get(mTracedXyCoordinates.size()-1);
+		//Pair<Integer, Integer> oneBeforeTip = mTracedXyCoordinates.get(mTracedXyCoordinates.size()-4);
 		
 		// slope at the middle of the trace
-		double slope = ((double) tipOfArrow.second - (double) oneBeforeTip.second) / ((double) tipOfArrow.first - (double) oneBeforeTip.first);
+		double slope = ((double) points.second.y - (double) points.first.y) / ((double) points.second.x - (double) points.first.x);
 		
 		if (Double.isInfinite(slope)) {
 			slope = 100000;
 		}
 		
 		// find the point behind the midpt to find our arrow segment endings from
-		Pair<Double, Double> possibleXVals = findPossibleXOnLine(arrowSize, slope, tipOfArrow.first, tipOfArrow.second);
+		Pair<Double, Double> possibleXVals = findPossibleXOnLine(arrowSize, slope, points.second.x, points.second.y);
 		double orthoPtX;
 		
 		// adjust for the direction the arrow should point in - there's four directions, so four cases
-		if (tipOfArrow.first >= oneBeforeTip.first && tipOfArrow.second >= oneBeforeTip.second) {
+		if (points.second.x >= points.first.x && points.second.y >= points.first.y) {
 			// if both x and y of the arrow's tip are bigger than the point before it, down and to right
 			orthoPtX = possibleXVals.second;
 		}
-		else if (tipOfArrow.first >= oneBeforeTip.first && tipOfArrow.second < oneBeforeTip.second) {
+		else if (points.second.x >= points.first.x && points.second.y < points.first.y) {
 			// if tipofarrow's x is bigger, but y is smaller, pointing up and to right
 			orthoPtX = possibleXVals.second;
 		}
-		else if (tipOfArrow.first < oneBeforeTip.first && tipOfArrow.second >= oneBeforeTip.second) {
+		else if (points.second.x < points.first.x && points.second.y >= points.first.y) {
 			// if tipofarrow's x is smaller but y is bigger, pointing down and to left
 			orthoPtX = possibleXVals.first;
 		}
@@ -205,7 +176,7 @@ public class RouteDrawView extends View {
 			// pointing up and to left
 			orthoPtX = possibleXVals.first;
 		}
-		double orthoPtY = findYFromXOnLine(slope, orthoPtX, tipOfArrow.first, tipOfArrow.second);
+		double orthoPtY = findYFromXOnLine(slope, orthoPtX, points.second.x, points.second.y);
 		
 		// slope to use with orthoPt - already corrected it if slope = infinity, now correct if slope = 0
 		double invslope;
@@ -221,9 +192,9 @@ public class RouteDrawView extends View {
 		Pair<Double, Double> yVals = findYValsFromXVals(xVals, invslope, orthoPtX, orthoPtY);
 				
 		// draw the arrow's line segments
-		mPath.moveTo(tipOfArrow.first, tipOfArrow.second);
+		mPath.moveTo(points.second.x, points.second.y);
 		mPath.lineTo(xVals.first.floatValue(), yVals.first.floatValue());
-		mPath.moveTo(tipOfArrow.first, tipOfArrow.second);
+		mPath.moveTo(points.second.x, points.second.y);
 		mPath.lineTo(xVals.second.floatValue(), yVals.second.floatValue());
 		invalidate();
 		
@@ -290,6 +261,7 @@ public class RouteDrawView extends View {
 	 */
 	public void clearTracedRoute() {
 		mPath.reset();
+		//System.out.println("clearing traced route");
 		invalidate();
 	}
 	
@@ -300,6 +272,7 @@ public class RouteDrawView extends View {
 	 */
 	public void moveLineTo(float x, float y) {
 		mPath.moveTo(x,y);
+		//System.out.println("moved line to " + x + ", " + y);
 		invalidate();
 	}
 	
@@ -311,6 +284,7 @@ public class RouteDrawView extends View {
 	 */
 	public void drawLineTo(float x, float y) {
 		mPath.lineTo(x, y);
+		//System.out.println("drew line to " + x + ", " + y);
 		invalidate();
 	}
 }

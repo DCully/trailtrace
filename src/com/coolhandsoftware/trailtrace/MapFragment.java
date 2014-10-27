@@ -8,7 +8,6 @@ import java.util.ArrayList;
 import org.osmdroid.ResourceProxy;
 import org.osmdroid.api.IGeoPoint;
 import org.osmdroid.bonuspack.overlays.BasicInfoWindow;
-import org.osmdroid.bonuspack.overlays.Polyline;
 import org.osmdroid.tileprovider.tilesource.ITileSource;
 import org.osmdroid.tileprovider.tilesource.XYTileSource;
 import org.osmdroid.util.GeoPoint;
@@ -23,7 +22,6 @@ import org.osmdroid.views.overlay.mylocation.MyLocationNewOverlay;
 import android.app.Fragment;
 import android.content.Context;
 import android.graphics.Color;
-import android.location.Location;
 import android.os.Bundle;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -32,9 +30,10 @@ import android.view.ViewGroup;
 import com.coolhandsoftware.topogen.R;
 
 /**
- * This fragment holds the map itself for the MapActivity.
- * @author David Cully
- * david.a.cully@gmail.com
+ * This fragment holds the map itself for the MapActivity. 
+ * It should only ever receive directions from the MapActivity - never the other way around.
+ * 
+ * @author David Cully david.a.cully@gmail.com
  *
  */
 public class MapFragment extends Fragment { 
@@ -50,12 +49,12 @@ public class MapFragment extends Fragment {
 	private MyLocationNewOverlay myLocationOverlay;
 	
 	/** this is the object which is the user's measured trace, and is drawn on top of the map **/
-	private Polyline mPolyline;
+	private SnappablePolyline mPolyline;
+	private SnappablePolyline.IPolylineDoubleTapReceiver mPolylineListener;
 		
 	/**
 	 * Sets up and returns mMapView with its overlays. Sets parent activity as myMapView's 
-	 * IMapViewLayoutListener, so the activity can update the map when it's ready to be 
-	 * drawn on.
+	 * IMapViewLayoutListener, so the activity can update the map when it's ready to be drawn on.
 	 */
 	@Override
 	public View onCreateView(LayoutInflater inflater, ViewGroup container, Bundle bundle) 
@@ -81,10 +80,27 @@ public class MapFragment extends Fragment {
 		myLocationOverlay = new MyLocationNewOverlay(context, myMapView);
 		myMapView.getOverlays().add(myLocationOverlay);
 		
-		myMapView.addOnLayoutChangeListener((MapActivity) getActivity());
-				
+		registerAsMapLayoutListener((MapActivity) getActivity());
+		
 		return myMapView;
 	}
+	
+	/**
+	 * Adds listener to MapView to receive callbacks when map layout changes. Used to delay drawing on map until it's laid out.			
+	 * @param listener 
+	 */
+	public void registerAsMapLayoutListener(View.OnLayoutChangeListener listener) {
+		myMapView.addOnLayoutChangeListener((MapActivity) getActivity());
+	}
+	
+	/**
+	 * Sets who will be added to receive callbacks from polylines when they are built.
+	 * @param listener
+	 */
+	public void registerAsPolylineDtapListener(SnappablePolyline.IPolylineDoubleTapReceiver listener) {
+		mPolylineListener = listener;
+	}
+	
 	
 	@Override
 	public void onPause() {
@@ -102,46 +118,13 @@ public class MapFragment extends Fragment {
 	}
 	
 	/**
-	 * Finds the distance in miles of a list of geopoints.
-	 * @param pointsList
-	 * @return distance in miles
-	 */
-	private float getDistanceInMiles(ArrayList<GeoPoint> pointsList) {
-		float totalDistance = 0;
-		
-		for (int x = 1; x < pointsList.size(); ++x) {
-			totalDistance += getDistanceInMiles(pointsList.get(x-1), pointsList.get(x));
-		}
-		
-		return totalDistance;
-	}
-	
-	/**
 	 * This function clears whatever route the user had traced and then measured into the map.
 	 */
 	public void eraseTracedRoute() {
 		if (mPolyline != null) {
 			mPolyline.hideInfoWindow();
 		}
-		myMapView.getOverlays().remove(mPolyline); // so we first try to remove the last drawing
-	}
-	
-	
-	/**
-	 * Helper function to find the distance between two GeoPoints.
-	 * Copied from http://stackoverflow.com/questions/5936912/how-to-find-the-distance-between-two-geopoints
-	 * @param p1 the first point
-	 * @param p2 the second point
-	 * @return distance in miles
-	 */
-	private float getDistanceInMiles(GeoPoint p1, GeoPoint p2) {
-	    double lat1 = ((double)p1.getLatitudeE6()) / 1e6;
-	    double lng1 = ((double)p1.getLongitudeE6()) / 1e6;
-	    double lat2 = ((double)p2.getLatitudeE6()) / 1e6;
-	    double lng2 = ((double)p2.getLongitudeE6()) / 1e6;
-	    float [] dist = new float[1];
-	    Location.distanceBetween(lat1, lng1, lat2, lng2, dist);
-	    return dist[0] * 0.000621371192f;
+		myMapView.getOverlays().remove(mPolyline);
 	}
 	
 	/**
@@ -154,9 +137,10 @@ public class MapFragment extends Fragment {
 	}
 	
 	/**
-	 * 
+	 * Used to store zoom level persistently in the MapTraceCoordinateManager along with the rest of the data.
 	 * @return map's zoom level (1-18)
 	 */
+	
 	public int getZoomLevel() {
 		return myMapView.getZoomLevel();
 	}
@@ -183,29 +167,46 @@ public class MapFragment extends Fragment {
 	 * Redraws the hand-drawn route with new coordinates.
 	 * @param geoPointsList the list of points on the route, in GeoPoints.
 	 */
-	public void drawRouteFromGeoPoints(ArrayList<GeoPoint> geoPointsList) {
+	public void drawRoute(MeasuredRoute route) {
 		eraseTracedRoute();
-		mPolyline = new Polyline(getActivity());
-		
+		mPolyline = new SnappablePolyline(getActivity(), mPolylineListener);
+		ArrayList<GeoPoint> geoPointsList = combineGeoPointArrays(route.mPoints);
 		mPolyline.setPoints(geoPointsList);
 		mPolyline.getPaint().setColor(Color.BLUE);
 		
 		// multiplies by constant factor to compensate for smoothness of trace vs jaggedness of average trail
-		// TODO this is not great - it needs to snap to routes. increases distance by 10%
+		// TODO this is not great - it needs to snap to routes. 
 
 		
 		// build an info window to show total distance
-		float totalDistance = getDistanceInMiles(geoPointsList);
 		DecimalFormat df = new DecimalFormat("##.##");
 		df.setRoundingMode(RoundingMode.DOWN);
 		mPolyline.setInfoWindow(new BasicInfoWindow(R.layout.bonuspack_bubble, myMapView));
 		mPolyline.setTitle("Distance");
-		mPolyline.setSnippet(df.format(totalDistance*1.1) + " miles");
+		mPolyline.setSnippet(df.format(route.mLength) + " miles");
 		myMapView.getOverlays().add(mPolyline);
-
-		mPolyline.getInfoWindow().open(mPolyline, geoPointsList.get(geoPointsList.size()/2), 0, 0);
+		mPolyline.getInfoWindow().open(mPolyline, geoPointsList.get(geoPointsList.size()-1), 0, 0);
 	}
 	
+	/**
+	 * Helper function to combine an array of arrays of GeoPoints to a single continuous array of GeoPoints.
+	 * @param points array of arrays
+	 * @return one array
+	 */
+	private ArrayList<GeoPoint> combineGeoPointArrays(ArrayList<ArrayList<GeoPoint>> points) {
+		ArrayList<GeoPoint> result = new ArrayList<GeoPoint>();
+		
+		for (int x = 0; x < points.size(); ++x) {
+			result.addAll(points.get(x));
+		}
+		
+		return result;
+	}
+	
+	/**
+	 * Used to store the map center in model object onPause, etc.
+	 * @return current map center
+	 */
 	public IGeoPoint getCurrentMapCenter() {
 		return myMapView.getMapCenter();
 	}
